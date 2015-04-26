@@ -5,7 +5,8 @@ output: html_document
 
 ## Synopsis
 This document describes the analysis performed for the Machine Learning Assignment.  
-Link to Github repo http://pekgnee.github.io/MachineLearningAssignment/
+Link to Github repo http://github.com/pekgnee/MachineLearningAssignment  
+Link to Github Pages http://pekgnee.github.io/MachineLearningAssignment/MachineLearning.html
 
 The goal of the assignment is to build a machine learning algorithm to predict how well an activity ( weight lifting excercise) is performed by 6 participants based on the data from activity monitors (accelerometers attached to the belt, forearm, arm, and dumbell).  
 
