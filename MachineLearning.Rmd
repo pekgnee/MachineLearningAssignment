@@ -1,0 +1,91 @@
+---
+title: "Machine Learning Assignment"
+output: html_document
+---
+
+## Synopsis
+This document describes the analysis performed for the Machine Learning Assignment.  
+Link to Github repo http://pekgnee.github.io/MachineLearningAssignment/
+
+The goal of the assignment is to build a machine learning algorithm to predict how well an activity ( weight lifting excercise) is performed by 6 participants based on the data from activity monitors (accelerometers attached to the belt, forearm, arm, and dumbell).  
+
+The data for the project come from the source: http://groupware.les.inf.puc-rio.br/har
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+load("modFit.RData")
+```
+
+## Exploratory Data Analysis
+As a code book for the data set was not available, much of the exploratory data analysis was based on observing patterns in the data, particularly for the variables new_window & num_window. This was done using Excel as well as a scatter-plot of relevant variables, and it was determined that the first 7 variables shall not be considered as  predictors, as they are not activity monitor data. A sample plot of the variable roll_belt was also made to get a sense of how an activity monitor data looks like, with respect to the output classification variable classe.
+```{r message=FALSE}
+library(caret)
+pmlTraining <- read.csv("pml-training.csv", na.strings=c("#DIV/0!","NA"))
+pmlTesting <- read.csv("pml-testing.csv", na.strings=c("#DIV/0!","NA"))
+featurePlot(x=pmlTraining[,c("X", "user_name", "new_window", "num_window")], y=pmlTraining$classe, plot="pairs", auto.key=list(columns=3))
+
+```{r}
+plot(pmlTraining$roll_belt, col=pmlTraining$classe)
+legend('topright', legend=levels(pmlTraining$classe), pch='o', col=1:5)
+```
+
+## Partition and clean the data
+It was also observed that in the test data - as well as many rows of the training data - several variables were NA or did not have values. These variables could be related to computation based on a sliding window, but as they are not avaiable in the test data, they should also not be considered for predictors. A check for Near-zero-variance showed the remaining variables were all relevant for further analysis.
+```{r}
+keepCol <- sapply(pmlTesting, is.numeric)
+keepCol[c(1:7)] = FALSE
+inTrain <- createDataPartition(y=pmlTraining$class, p=0.6, list=FALSE)
+training <- pmlTraining[inTrain, keepCol]
+testing <- pmlTraining[-inTrain, keepCol]
+submission <- pmlTesting[, keepCol]
+nsvCol <- nearZeroVar(training, saveMetrics=TRUE)
+```
+
+## Set up environment to use multi-core
+Using the doParallel package, parallel processing on multi-core is possible. This is necessary as training with the Random Forest method is computationally intensive.
+```{r message=FALSE}
+library(doParallel)
+cluster <- makeCluster(max(detectCores() - 1), 1)
+registerDoParallel(cluster)
+train_control <- trainControl(allowParallel=TRUE)
+```
+
+## Train model with Random Forest method
+```{r, eval=FALSE}
+modFit <- train(classe ~ ., data=training, method="rf", trControl=train_control, prox=TRUE)
+```
+
+```{r echo=FALSE}
+stopCluster(cluster)
+registerDoSEQ()
+```
+
+```{r message=FALSE}
+varImp(modFit)
+```
+The Variable Importance shows the relative importance of the 20 most important variables that were found through training using Random Forest method.
+
+## Cross-validation and estimating out of sample error
+```{r}
+modFit
+pred <- predict(modFit, testing)
+confusionMatrix(pred, testing$classe)
+```
+The default settings of caret package were used for training, which automatically performs cross-validation.  
+In this case resampling method was Cross-Validated, 10 fold,  repeated 3 times.  
+The fitted model output estimates an accuracy of 0.9905460, ie. error = 0.9454%  
+This is cross-checked using the testing partition, giving an accuracy of 0.9946, ie. output of sample error = 0.54%
+
+## Prediction for submission
+```{r, eval=FALSE}
+pred_submission <- predict(modFit, submission)
+
+pml_write_files = function(x){
+    n = length(x)
+    for(i in 1:n){
+        filename = paste0("problem_id_",i,".txt")
+        write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    }
+}
+pml_write_files(pred_submission)
+```
